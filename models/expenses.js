@@ -30,28 +30,24 @@ const expenseSchema = new mongoose.Schema({
         required: true,
         enum: ['equally', 'exact_amounts', 'pecentage', 'share', 'adjustment', 'reimbursment', 'itemised']
     },
-    paid_by: [
-        {
-            user: {
-                type: mongoose.Schema.ObjectId,
-                ref: 'users'
-            },
-            amount: {
-                type: Number
-            }
-        }
-    ],
     split_between: [
         {
             user: {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: 'users'
             },
+            paid: {
+                type: Number
+            },
             share: {
                 type: Number
             }
         }
     ],
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'users'
+    },
     created_at: {
         type: Date,
         default: Date.now()

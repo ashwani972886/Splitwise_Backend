@@ -13,16 +13,91 @@ const asyncMiddleware = require('../middlewares/async');
 const User = require('../models/user');
 const Group = require('../models/groups');
 const Friend = require('../models/friends');
+const Expense = require('../models/expenses');
 
 exports.addExpense = asyncMiddleware(async(req, res) => {
+
+    const UpdateBalances = async(paidUser, splitUser, newBal) => {
+        const query_filter = {
+            $or: [
+                {
+                    $and: [
+                        {added_by: paidUser},
+                        {friend: splitUser}
+                    ]
+                },
+                {
+                    $and: [
+                        {added_by: splitUser},
+                        {friend: paidUser}
+                    ]
+                }
+            ]
+        };
+
+        const friendship = await Friend.findOne(query_filter);
+
+        if(friendship) {
+            let updateBal = null;
+            const {owe, owed} = friendship.balances;
+            if(friendship.added_by.equals(paidUser)) {
+                if(owe === 0) {
+                    updateBal = await Friend.findOneAndUpdate(query_filter, {
+                        $inc: {
+                            "balances.owed": newBal
+                        }
+                    });
+                } else {
+                    const finalDiff = newBal - owe;
+                    if(finalDiff >= 0) {
+                        updateBal = await Friend.findOneAndUpdate(query_filter, {
+                            $inc: {
+                                "balances.owe": -owe,
+                                "balances.owed": finalDiff
+                            }
+                        });
+                    } else {
+                        updateBal = await Friend.findOneAndUpdate(query_filter, {
+                            $inc: {
+                                "balances.owe": -newBal,
+                            }
+                        });
+                    }
+                }
+            } else {
+                if(owed === 0) {
+                    updateBal = await Friend.findOneAndUpdate(query_filter, {
+                        $inc: {
+                            "balances.owe": newBal
+                        }
+                    });
+                } else {
+                    const finalDiff = splitUserShareAmount - owed;
+                    if(finalDiff >= 0 ) {
+                        updateBal = await Friend.findOneAndUpdate(query_filter, {
+                            $inc: {
+                                "balances.owe": finalDiff,
+                                "balances.owed": -owed
+                            }
+                        });
+                    } else {
+                        updateBal = await Friend.findOneAndUpdate(query_filter, {
+                            $inc: {
+                                "balances.owed": -newBal,
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    };
+
     const userId = req.user;
     const body = {...req.body};
-    
-    // let splitData = (body.split_between).sort((data1, data2) => (data1.paid < data2.paid) ? 1 : (data1.paid > data2.paid) ? -1 : 0);
 
-    // let splitData= (body.split_between).sort((data1, data2) => ((data1.paid - data1.share) > 0) ? 1 : ((data1.paid - data1.share) > 0) ? -1 : 0);
-    let splitData = (body.split_between).sort((data1, data2) => {return (data2.paid - data2.share) - (data1.paid - data1.share)});
-    // console.log(splitData);
+    const splitUsers = (body.split_between).slice(0);
+
+    const splitData = (splitUsers).sort((data1, data2) => {return (data2.paid - data2.share) - (data1.paid - data1.share)});
     
     if(splitData[0].paid === body.amount) {
         const paidUser = new ObjectId(splitData[0].user);
@@ -34,85 +109,11 @@ exports.addExpense = asyncMiddleware(async(req, res) => {
         const sharePerHead = balAmount / restArray.length;
         for(let i = 0; i < restArray.length; i++) {
             const splitUser = new ObjectId(restArray[i].user);
-            
-            let updateBal = null;
 
-            const query_filter = {
-                $or: [
-                    {
-                        $and: [
-                            {added_by: paidUser},
-                            {friend: splitUser}
-                        ]
-                    },
-                    {
-                        $and: [
-                            {added_by: splitUser},
-                            {friend: paidUser}
-                        ]
-                    }
-                ]
-            };
-
-            const friendship = await Friend.findOne(query_filter);
-
-            if(friendship) {
-                const {owe, owed} = friendship.balances;
-                if(friendship.added_by.equals(paidUser)) {
-                    if(owe === 0) {
-                        updateBal = await Friend.findOneAndUpdate(query_filter, {
-                            $inc: {
-                                "balances.owed": sharePerHead
-                            }
-                        });
-                    } else {
-                        const diff = sharePerHead - owe;
-                        if(diff >= 0 ) {
-                            updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                $inc: {
-                                    "balances.owe": -owe,
-                                    "balances.owed": diff
-                                }
-                            });
-                        } else {
-                            updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                $inc: {
-                                    "balances.owe": -sharePerHead,
-                                }
-                            });
-                        }
-                    }
-                } else {
-                    if(owed === 0 ){
-                        updateBal = await Friend.findOneAndUpdate(query_filter, {
-                            $inc: {
-                                "balances.owe": sharePerHead
-                            }
-                        });
-                    } else {
-                        const diff = sharePerHead - owed;
-                        if(diff >= 0 ) {
-                            updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                $inc: {
-                                    "balances.owe": diff,
-                                    "balances.owed": -owed
-                                }
-                            });
-                        } else {
-                            updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                $inc: {
-                                    "balances.owed": -sharePerHead,
-                                }
-                            });
-                        }
-                    }
-                }
-                res.send(updateBal);
-            }
-
+            await UpdateBalances(paidUser, splitUser, sharePerHead);
         }
     } else {
-        let updateBal = null;
+
         for(let i = 0; i < splitData.length; i++) {
             const paidUser = new ObjectId(splitData[i].user);
             const paidAmount = splitData[i].paid;
@@ -137,273 +138,34 @@ exports.addExpense = asyncMiddleware(async(req, res) => {
 
                 if(diff <= 0){
                     splitData[j].share -= balAmount;
-                    console.log(splitData[j]);
-                    const query_filter = {
-                        $or: [
-                            {
-                                $and: [
-                                    {added_by: paidUser},
-                                    {friend: splitUser}
-                                ]
-                            },
-                            {
-                                $and: [
-                                    {added_by: splitUser},
-                                    {friend: paidUser}
-                                ]
-                            }
-                        ]
-                    };
-
-                    const friendship = await Friend.findOne(query_filter);
-
-                    if(friendship) {
-                        const {owe, owed} = friendship.balances;
-                        if(friendship.added_by.equals(paidUser)) {
-                            if(owe === 0) {
-                                updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                    $inc: {
-                                        "balances.owed": balAmount
-                                    }
-                                });
-                            } else {
-                                const finalDiff = balAmount - owe;
-                                if(finalDiff >= 0) {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owe": -owe,
-                                            "balances.owed": finalDiff
-                                        }
-                                    });
-                                } else {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owe": -balAmount,
-                                        }
-                                    });
-                                }
-                            }
-                        } else {
-                            if(owed === 0) {
-                                updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                    $inc: {
-                                        "balances.owe": balAmount
-                                    }
-                                });
-                            } else {
-                                const finalDiff = balAmount - owed;
-                                if(finalDiff >= 0 ) {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owe": finalDiff,
-                                            "balances.owed": -owed
-                                        }
-                                    });
-                                } else {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owed": -balAmount,
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                        balAmount = 0;
-                        break;
-                    }
+                    
+                    await UpdateBalances(paidUser, splitUser, balAmount);
+                    balAmount = 0;
                     break;
+                    
                 } else {
                     splitData[j].share -= splitUserShareAmount;
 
-                    const query_filter = {
-                        $or: [
-                            {
-                                $and: [
-                                    {added_by: paidUser},
-                                    {friend: splitUser}
-                                ]
-                            },
-                            {
-                                $and: [
-                                    {added_by: splitUser},
-                                    {friend: paidUser}
-                                ]
-                            }
-                        ]
-                    };
-
-                    const friendship = await Friend.findOne(query_filter);
-
-                    if(friendship) {
-                        const {owe, owed} = friendship.balances;
-                        if(friendship.added_by.equals(paidUser)) {
-                            if(owe === 0) {
-                                updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                    $inc: {
-                                        "balances.owed": splitUserShareAmount
-                                    }
-                                });
-                            } else {
-                                const finalDiff = splitUserShareAmount - owe;
-                                if(finalDiff >= 0) {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owe": -owe,
-                                            "balances.owed": finalDiff
-                                        }
-                                    });
-                                } else {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owe": -splitUserShareAmount,
-                                        }
-                                    });
-                                }
-                            }
-                        } else {
-                            if(owed === 0) {
-                                updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                    $inc: {
-                                        "balances.owe": splitUserShareAmount
-                                    }
-                                });
-                            } else {
-                                const finalDiff = splitUserShareAmount - owed;
-                                if(finalDiff >= 0 ) {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owe": finalDiff,
-                                            "balances.owed": -owed
-                                        }
-                                    });
-                                } else {
-                                    updateBal = await Friend.findOneAndUpdate(query_filter, {
-                                        $inc: {
-                                            "balances.owed": -splitUserShareAmount,
-                                        }
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    balAmount = 0;
-                    break;
-
+                    // Call Function here
+                    await UpdateBalances(paidUser, splitUser, splitUserShareAmount);
+                    balAmount -= splitUserShareAmount;
                     j++;
+
                 }
 
             }
 
         }
-        res.send(updateBal);
     }
 
-    const UpdateBalances = async() => {
+    body.createdBy = userId;
+    const newExpense = new Expense(body);
+    const saveNewExpense = await newExpense.save();
 
-    };
+    if(!saveNewExpense) {
+        return res.status(500).send({error: "Internal server error!"});
+    } else {
+        return res.status(201).send({message: "Expense created successfully!"});
+    }
 
-    // console.log(body);
-    // const expenseAmount = body.amount;
-
-    // for(let i = 0; i < body.paid_by.length; i++) {
-    //     const paidAmount = body.paid_by[i].amount;
-    //     const sharePerHead = (paidAmount)/(body.split_between.length);
-
-    // }
-
-    // if(body.paid_by.length === 1) {
-    //     const paidUser = new ObjectId(body.paid_by[0].user);
-    //     for(let i = 0; i < body.split_between.length; i++) {
-    //         const splitUser = new ObjectId(body.split_between[i].user);
-
-    //         if(splitUser.equals(paidUser)) {
-    //             continue;
-    //         }
-
-    //         const query_filter = {
-    //             $or: [
-    //                 {
-    //                     $and: [
-    //                         {admin: paidUser},
-    //                         {friend: splitUser}
-    //                     ]
-    //                 },
-    //                 {
-    //                     $and: [
-    //                         {admin: splitUser},
-    //                         {friend: paidUser}
-    //                     ]
-    //                 }
-    //             ]
-    //         };
-
-    //         const friendship = await Friend.findOne(query_filter);
-
-    //         if(friendship) {
-    //             const {owe, owed} = friendship.balances;
-    //             if(friendship.added_by.equals(paidUser)) {
-    //                 if(owe == 0) {
-    //                     const updateBal = await Friend.findOneAndUpdate(query_filter, {
-    //                         $inc: {
-    //                             "balances.owed": sharePerHead
-    //                         }
-    //                     });
-    //                     res.send(updateBal);
-
-    //                 } else {
-    //                     const diff = sharePerHead - owe;
-    //                     if(diff >= 0){
-    //                         const updateBal = await Friend.findOneAndUpdate(query_filter, {
-    //                             $inc: {
-    //                                 "balances.owe": -owe,
-    //                                 "balances.owed": diff
-    //                             }
-    //                         });
-    //                         res.send(updateBal);
-
-    //                     } else {
-    //                         const updateBal = await Friend.findOneAndUpdate(query_filter, {
-    //                             $inc: {
-    //                                 "balances.owe": -sharePerHead
-    //                             }
-    //                         });
-    //                         res.send(updateBal);
-    //                     }
-    //                 }
-    //             } else {
-    //                 if(owed == 0) {
-    //                     const updateBal = await Friend.findOneAndUpdate(query_filter, {
-    //                         $inc: {
-    //                             "balances.owe": sharePerHead
-    //                         }
-    //                     });
-    //                     res.send(updateBal);
-
-    //                 } else {
-    //                     const diff = sharePerHead - owed;
-    //                     if(diff >= 0){
-    //                         const updateBal = await Friend.findOneAndUpdate(query_filter, {
-    //                             $inc: {
-    //                                 "balances.owe": diff,
-    //                                 "balances.owed": -owed
-    //                             }
-    //                         });
-    //                         res.send(updateBal);
-
-    //                     } else {
-    //                         const updateBal = await Friend.findOneAndUpdate(query_filter, {
-    //                             $inc: {
-    //                                 "balances.owed": -sharePerHead
-    //                             }
-    //                         });
-    //                         res.send(updateBal);
-    //                     }
-    //                 }
-    //             }
-    //         }
-
-    //     }
-    // }
-
-    // res.send({expenseAmount, sharePerHead});
 });
