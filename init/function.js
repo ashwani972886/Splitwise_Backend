@@ -40,3 +40,11 @@ exports.removeDuplicates = async (array, type) => {
     }
     return array;
 };
+
+exports.swapValues = async(a, b) => {
+    a = a + b;
+    b = a - b;
+    a = a - b;
+
+    return a, b;    
+};

@@ -6,6 +6,10 @@ const expenseSchema = new mongoose.Schema({
         type: String,
         enum: ["Group", "Friend"]
     },
+    groupId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'groups'
+    },
     desc: {
         type: String,
         required: true
