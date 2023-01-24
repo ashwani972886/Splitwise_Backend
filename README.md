@@ -11,10 +11,29 @@
 
 > Splitwise clone assignment
 
+
+### Env Setup
+
+```
+Follow .env.example file to create .env file as per your convenience
+```
+
+## Setup Database
+
+```
+Create an empty database in your localhost, then enter the required db credentials in .env file
+```
+
 ## Install
 
 ```sh
 npm install
+```
+
+## Run Project
+
+```sh
+npm start
 ```
 
 ## Author
