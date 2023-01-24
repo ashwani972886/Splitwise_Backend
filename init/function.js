@@ -34,17 +34,9 @@ exports.removeDuplicates = async (array, type) => {
             return index === array.findIndex(obj => {
               return JSON.stringify(obj) === _value;
             });
-          });
+        });
     } else {
         array = [...new Set(array)];
     }
     return array;
-};
-
-exports.swapValues = async(a, b) => {
-    a = a + b;
-    b = a - b;
-    a = a - b;
-
-    return a, b;    
 };

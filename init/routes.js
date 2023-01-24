@@ -3,6 +3,8 @@ const Group = require('../routes/group');
 const Expense = require('../routes/expenses');
 
 module.exports = app => {
+
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
     // Redirection to User Routes
     app.use('/user', User);
     // Redirection to Group Routes

@@ -116,7 +116,7 @@ exports.getGroupList = asyncMiddleware(async(req, res) => {
     };
 
     // Running the query to find groups associated with user
-    const groups = await Group.find(query_filter);
+    const groups = await Group.find(query_filter).populate('members', 'name email');
     
     // Response after query
     if(groups.length < 1) {

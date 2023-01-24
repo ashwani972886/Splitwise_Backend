@@ -23,16 +23,16 @@ const expenseSchema = new mongoose.Schema({
         required: true
     },
     notes: {
-        type: String
+        type: String,
+        default: ""
     },
     date: {
-        type: Date,
-        default: Date.now()
+        type: Date
     },
     split_method: {
         type: String,
         required: true,
-        enum: ['equally', 'exact_amounts', 'pecentage', 'share', 'adjustment', 'reimbursment', 'itemised']
+        enum: ['equally', 'amounts', 'percentages', 'shares']
     },
     split_between: [
         {

@@ -94,7 +94,7 @@ const friendsSchema = [
     .withMessage( 'Please enter atleast 1 email to add friends')
     .bail()
     .isArray({min:1})
-    .withMessage('Please pass your friends email into array form'),
+    .withMessage("Please pass your friend's email"),
     check('friends.*')
     .exists({checkFalsy: true})
     .isEmail()

@@ -26,13 +26,22 @@ router.post('/updatePass', [updatePassSchema, validateData], UserController.upda
 //ROUTE 4:: Get user details: Using GET '/user'. (Login required)
 router.get('/', userAuth, UserController.getUser);
 
-//ROUTE 5:: Change Password: Using PUT '/user/changePass'. (Login required)
+//ROUTE 5:: Get friend details: Using GET '/user/:id'. (Login required)
+router.get('/friendDetails/:id', userAuth, UserController.getFriendDetails);
+
+//ROUTE 6:: Change Password: Using PUT '/user/changePass'. (Login required)
 router.put('/changePass', [changePassSchema, validateData, userAuth], UserController.changePass);
 
-// ROUTE 6:: Add Friend: Using PUT '/user/addFriend'. (Login required)
-router.put('/addFriend', [friendsSchema, validateData, userAuth], UserController.addFriend);
+// ROUTE 7:: Add Friend: Using POST '/user/addFriend'. (Login required)
+router.post('/addFriend', [friendsSchema, validateData, userAuth], UserController.addFriend);
 
-// ROUTE 7:: Get Friend: Using GET '/user/friends'. (Login required)
+// ROUTE 8:: Get Friend: Using GET '/user/friends'. (Login required)
 router.get('/friends', userAuth, UserController.getFriends);
+
+// ROUTE 9:: Invite Friends: Using POST '/user/friends/invite'. (Login required)
+router.post('/friends/invite', userAuth, UserController.inviteFriends);
+
+// ROUTE 10:: Send Reminder: Using GET 'user/remind/:friendId'. (Login required)
+router.get('/remind/:friendId', userAuth, UserController.sendReminder);
 
 module.exports  = router;
