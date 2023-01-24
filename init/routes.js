@@ -1,6 +1,8 @@
 const User = require('../routes/user');
 const Group = require('../routes/group');
 const Expense = require('../routes/expenses');
+const swaggerUi = require('swagger-ui-express');
+const swaggerFile = require('../swagger_output.json');
 
 module.exports = app => {
 
